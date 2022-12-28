@@ -1,0 +1,62 @@
+Insert into
+    dbo_nps_external.spark_IOS_reports
+with reports as (
+        Select
+            clientcode,
+            CAST(createdAt as timestamp) as createdAt,
+            max(ID) as max_id
+        From
+            dbo_nps.surveyclientleadsanswer
+        where
+            createdAt >= Cast(date_add('day', -30, current_date) as Varchar)
+            and createdAt < Cast(date_add('day', 0, current_date) as Varchar)
+        group by
+            1,
+            2
+    ),
+    r1 as (
+        Select
+            Client_id
+        From
+            dbo_nps_external.spark_IOS_reports
+        where
+            dt >= cast(date_add('day', -7, current_date) as Varchar)
+            --and journey = 'reports'
+        
+    ),
+r2 as (select  
+distinct (client_id) , dt from  clickstream_internal.spark_ios_clickstream_data  where event_id in ('37.0.0.1.6',
+'37.0.0.1.7',
+'37.0.0.1.8')
+and  dt = current_date - 1),
+r3 as (
+        select
+            client_id,
+            dt
+        from
+            r2
+        Where
+            (
+                Client_id not in (
+                    Select
+                        Clientcode
+                    from
+                       reports
+                )
+                and Client_id not in (
+                    Select
+                        Client_id
+                    from
+                       r1
+                )
+            )
+    )
+
+        select
+            distinct client_id,
+            dt,
+            --'reports' as journey
+        from
+            r3
+       
+  

@@ -1,0 +1,72 @@
+INSERT INTO dbo_nps_external.spark_ios_homepage WITH homepage AS
+            (
+                     SELECT   clientcode,
+                              cast(createdat AS timestamp) AS createdat,
+                              max(id) AS max_id
+                     FROM     dbo_nps.surveyclientleadsanswer
+                     WHERE    createdat >= cast(date_add('day', -30, CURRENT_DATE) AS varchar)
+                     AND      createdat < cast(date_add('day', 0, CURRENT_DATE) AS    varchar)
+                     GROUP BY 1,
+                              2
+            )
+            ,
+            h1 AS
+            (
+                   SELECT client_id
+                   FROM   dbo_nps_external.spark_ios_homepage
+                   WHERE  dt >= cast(date_add('day', -7, CURRENT_DATE) AS varchar)
+                          --and journey = 'homepage'
+            )
+            ,
+            h2 AS
+            (
+                   SELECT client_id ,
+                          CASE
+                                 WHEN event_id='11.0.0.1.23'THEN 'Markets_Today'
+                                 WHEN event_id='11.0.0.1.63' THEN 'Holdings_Card'
+                                 WHEN event_id IN ('11.0.0.1.53',
+                                                   '11.0.0.1.42') THEN 'Advisory'
+                          END AS event_name
+                   FROM   clickstream_internal.spark_ios_clickstream_data
+                   WHERE  event_id IN ('11.0.0.1.23',
+                                       '11.0.0.1.63',
+                                       '11.0.0.1.53',
+                                       '11.0.0.1.42')
+                   AND    dt>=CURRENT_DATE-10
+            )
+            ,
+            h3 AS
+            (
+                     SELECT   client_id,
+                              count(DISTINCT event_name) AS cnt
+                     FROM     h2
+                     GROUP BY 1
+            )
+            ,
+            h4 AS
+            (
+                   SELECT client_id,
+                          (CURRENT_DATE -1) AS dt
+                   FROM   h3
+                   WHERE  cnt=3
+            )
+            ,
+            h5 AS
+            (
+                   SELECT client_id,
+                          dt
+                   FROM   h4
+                   WHERE  (
+                                 client_id NOT IN
+                                 (
+                                        SELECT clientcode
+                                        FROM   homepage )
+                          AND    client_id NOT IN
+                                 (
+                                        SELECT client_id
+                                        FROM   h1 ) )
+            )
+            ,SELECT DISTINCT client_id,
+                dt
+                --'homepage' as journey
+FROM            h5

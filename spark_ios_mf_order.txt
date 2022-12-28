@@ -1,0 +1,62 @@
+Insert into
+    dbo_nps_external.spark_IOS_mf_order
+with mf_order as (
+        Select
+            clientcode,
+            CAST(createdAt as timestamp) as createdAt,
+            max(ID) as max_id
+        From
+            dbo_nps.surveyclientleadsanswer
+        where
+            createdAt >= Cast(date_add('day', -30, current_date) as Varchar)
+            and createdAt < Cast(date_add('day', 0, current_date) as Varchar)
+        group by
+            1,
+            2
+    ),
+    mf1 as (
+        Select
+            Client_id
+        From
+           dbo_nps_external.spark_IOS_mf_order
+        where
+            dt >= cast(date_add('day', -7, current_date) as Varchar)
+            --and journey = 'mf_orders'
+        
+    ),
+    
+mf2 as (select distinct(client_id), dt   from clickstream_internal.mf_clickstream_data where event_id in ('302.0.0.3.0','303.0.0.1.16')
+and lower(platform)='sparkios' and dt = current_date -1 ),
+
+mf3 as (
+        select
+            client_id,
+            dt
+        from
+            mf2
+        Where
+            (
+                Client_id not in (
+                    Select
+                        Clientcode
+                    from
+                        mf_order
+                )
+                and Client_id not in (
+                    Select
+                        Client_id
+                    from
+                       mf1
+                )
+            )
+    )
+
+
+        select
+            distinct client_id,
+            dt
+            --'mf_orders' as journey
+        from
+            mf3
+      
+
